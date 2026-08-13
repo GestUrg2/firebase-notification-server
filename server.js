@@ -1,3 +1,4 @@
+const cors = require("cors");
 const express = require("express");
 
 const {
@@ -14,7 +15,9 @@ const {
 } = require("firebase-admin/messaging");
 
 const app = express();
-
+app.use(cors({
+    origin: "https://junior2704.github.io"
+}));
 app.use(express.json());
 
 
