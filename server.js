@@ -6,13 +6,7 @@ const {
 } = require("firebase-admin/app");
 
 const {
-    getFirestore,
-    collection,
-    doc,
-    query,
-    where,
-    getDocs,
-    deleteDoc
+    getFirestore
 } = require("firebase-admin/firestore");
 
 const {
@@ -54,73 +48,180 @@ app.get("/", (req, res) => {
 // 🔔 ENVOI DIRECT À UN TOKEN
 // =====================================================
 
-app.post("/send-notification", async (req, res) => {
+app.post("/send-notification-user", async (req, res) => {
 
     try {
 
         const {
-            token,
+            userId,
             title,
             body
         } = req.body;
 
-        if (!token) {
+        if (!userId) {
+
             return res.status(400).json({
                 success: false,
-                error: "Token FCM manquant"
+                error: "userId manquant"
             });
+
         }
 
-
-        const message = {
-
-            token: token,
-
-            notification: {
-                title: title || "GestUrg2",
-                body: body || "Nouvelle notification"
-            },
-
-            data: {
-                type: "notification"
-            }
-
-        };
-
-
-        const response =
-            await messaging.send(message);
-
-
         console.log(
-            "✅ Notification envoyée :",
-            response
+            "🔎 Recherche des tokens pour :",
+            userId
         );
 
 
+        // 🔎 Recherche des tokens Firestore
+        const snapshot = await db
+            .collection("fcmTokens")
+            .where("userId", "==", userId)
+            .get();
+
+
+        if (snapshot.empty) {
+
+            console.log(
+                "📭 Aucun appareil trouvé"
+            );
+
+            return res.json({
+                success: true,
+                message: "Aucun appareil trouvé",
+                devices: 0,
+                sent: 0,
+                deleted: 0
+            });
+
+        }
+
+
+        const tokens = [];
+
+        snapshot.forEach((document) => {
+
+            const data = document.data();
+
+            if (data.token) {
+
+                tokens.push({
+                    token: data.token,
+                    documentId: document.id
+                });
+
+            }
+
+        });
+
+
+        console.log(
+            `📱 ${tokens.length} appareil(s) trouvé(s)`
+        );
+
+
+        let sent = 0;
+        let deleted = 0;
+
+
+        // 📲 Envoi à chaque appareil
+        for (const item of tokens) {
+
+            try {
+
+                await messaging.send({
+
+                    token: item.token,
+
+                    notification: {
+                        title: title || "GestUrg2",
+                        body: body || "Nouvelle notification"
+                    },
+
+                    data: {
+                        type: "notification"
+                    }
+
+                });
+
+
+                sent++;
+
+                console.log(
+                    "✅ Notification envoyée à :",
+                    item.documentId
+                );
+
+
+            } catch (error) {
+
+                console.error(
+                    "❌ Erreur token :",
+                    item.documentId,
+                    error.code
+                );
+
+
+                // 🧹 Suppression des tokens invalides
+                if (
+                    error.code ===
+                        "messaging/registration-token-not-registered" ||
+                    error.code ===
+                        "messaging/invalid-registration-token"
+                ) {
+
+                    await db
+                        .collection("fcmTokens")
+                        .doc(item.documentId)
+                        .delete();
+
+                    deleted++;
+
+                    console.log(
+                        "🗑️ Token invalide supprimé :",
+                        item.documentId
+                    );
+
+                }
+
+            }
+
+        }
+
+
         res.json({
+
             success: true,
-            messageId: response
+
+            userId: userId,
+
+            devices: tokens.length,
+
+            sent: sent,
+
+            deleted: deleted
+
         });
 
 
     } catch (error) {
 
         console.error(
-            "❌ Erreur envoi notification :",
+            "❌ Erreur générale :",
             error
         );
 
-
         res.status(500).json({
+
             success: false,
+
             error: error.message
+
         });
 
     }
 
 });
-
 
 // =====================================================
 // 👤 ENVOI À TOUS LES APPAREILS D'UN UTILISATEUR
