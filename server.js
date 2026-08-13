@@ -34,7 +34,56 @@ app.get("/", (req, res) => {
 
 
 const PORT = process.env.PORT || 3000;
+app.post("/send-notification", async (req, res) => {
 
+    try {
+
+        const { token, title, body } = req.body;
+
+        if (!token) {
+            return res.status(400).json({
+                success: false,
+                error: "Token FCM manquant"
+            });
+        }
+
+        const message = {
+            token: token,
+
+            notification: {
+                title: title || "GestUrg2",
+                body: body || "Test de notification 🔔"
+            },
+
+            data: {
+                type: "test"
+            }
+        };
+
+        const response = await messaging.send(message);
+
+        console.log("✅ Notification envoyée :", response);
+
+        res.json({
+            success: true,
+            messageId: response
+        });
+
+    } catch (error) {
+
+        console.error(
+            "❌ Erreur envoi notification :",
+            error
+        );
+
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+
+    }
+
+});
 app.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 Serveur lancé sur le port ${PORT}`);
 });
