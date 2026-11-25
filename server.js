@@ -16,7 +16,7 @@ const {
 
 const app = express();
 app.use(cors({
-    origin: "https://junior2704.github.io"
+    origin: "https://gesturg2.github.io"
 }));
 app.use(express.json());
 
